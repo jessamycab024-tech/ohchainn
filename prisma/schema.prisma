@@ -1,0 +1,267 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id                String      @id @default(cuid())
+  email             String      @unique
+  password          String
+  walletAddress     String      @unique
+  publicKey         String?
+  userName          String?     @unique
+  firstName         String?
+  lastName          String?
+  profileImage      String?
+  bio               String?
+  isEmailVerified   Boolean     @default(false)
+  emailVerifiedAt   DateTime?
+  is2FAEnabled      Boolean     @default(false)
+  twoFASecret       String?
+  isActive          Boolean     @default(true)
+  isBlacklisted     Boolean     @default(false)
+  lastLoginAt       DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  wallets           Wallet[]
+  transactions      Transaction[]
+  tokens            Token[]
+  adminLogs         AdminLog[]
+  notifications     Notification[]
+  
+  @@index([email])
+  @@index([walletAddress])
+}
+
+// Wallet model
+model Wallet {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletAddress     String      @unique
+  walletType        String      // 'metamask', 'ledger', 'trezor', 'hardware'
+  chainNetwork      String      // 'ethereum', 'polygon', 'bsc', etc
+  balance           String      @default("0")
+  nonce             Int         @default(0)
+  isDefault         Boolean     @default(false)
+  isVerified        Boolean     @default(false)
+  verifiedAt        DateTime?
+  lastSyncedAt      DateTime?
+  isArchived        Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  transactions      Transaction[]
+  tokenHoldings     TokenHolding[]
+  
+  @@index([userId])
+  @@index([walletAddress])
+  @@index([chainNetwork])
+}
+
+// Transaction model
+model Transaction {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId          String
+  wallet            Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  txHash            String      @unique
+  fromAddress       String
+  toAddress         String
+  amount            String
+  value             String
+  gasUsed           String?
+  gasPrice          String?
+  gasLimit          String?
+  nonce             Int?
+  
+  chainNetwork      String
+  tokenAddress      String?
+  tokenSymbol       String?
+  tokenDecimals     Int?
+  
+  txType            String      // 'send', 'receive', 'swap', 'stake', 'unstake'
+  status            String      // 'pending', 'confirmed', 'failed', 'cancelled'
+  blockNumber       Int?
+  blockTimestamp    DateTime?
+  
+  fee               String?
+  notes             String?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  confirmedAt       DateTime?
+  
+  @@index([userId])
+  @@index([walletId])
+  @@index([txHash])
+  @@index([status])
+  @@index([chainNetwork])
+}
+
+// Token model
+model Token {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  contractAddress   String
+  tokenName         String
+  tokenSymbol       String
+  tokenDecimals     Int
+  totalSupply       String
+  chainNetwork      String
+  
+  logoUrl           String?
+  description       String?
+  websiteUrl        String?
+  
+  isVerified        Boolean     @default(false)
+  isFavorite        Boolean     @default(false)
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  holdings          TokenHolding[]
+  
+  @@unique([contractAddress, chainNetwork])
+  @@index([tokenSymbol])
+  @@index([chainNetwork])
+}
+
+// Token Holdings model
+model TokenHolding {
+  id                String      @id @default(cuid())
+  walletId          String
+  wallet            Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  tokenId           String
+  token             Token       @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  
+  balance           String      @default("0")
+  decimals          Int
+  usdValue          String      @default("0")
+  lastUpdated       DateTime    @default(now())
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@unique([walletId, tokenId])
+  @@index([walletId])
+}
+
+// Admin User model
+model AdminUser {
+  id                String      @id @default(cuid())
+  email             String      @unique
+  password          String
+  firstName         String
+  lastName          String
+  role              String      // 'super_admin', 'admin', 'moderator'
+  permissions       String[]    // JSON array of permissions
+  
+  isActive          Boolean     @default(true)
+  lastLoginAt       DateTime?
+  loginAttempts     Int         @default(0)
+  isLocked          Boolean     @default(false)
+  lockedUntil       DateTime?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  adminLogs         AdminLog[]
+  
+  @@index([email])
+  @@index([role])
+}
+
+// Admin Log model
+model AdminLog {
+  id                String      @id @default(cuid())
+  adminId           String
+  admin             AdminUser   @relation(fields: [adminId], references: [id])
+  userId            String?
+  user              User?       @relation(fields: [userId], references: [id])
+  
+  action            String      // 'user_suspended', 'transaction_reversed', 'fee_adjusted'
+  category          String      // 'user_management', 'transaction_management', 'security'
+  description       String
+  oldValue          String?
+  newValue          String?
+  ipAddress         String?
+  userAgent         String?
+  
+  status            String      // 'success', 'failed'
+  
+  createdAt         DateTime    @default(now())
+  
+  @@index([adminId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Notification model
+model Notification {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type              String      // 'transaction', 'alert', 'system', 'security'
+  title             String
+  message           String
+  data              String?     // JSON additional data
+  
+  isRead            Boolean     @default(false)
+  readAt            DateTime?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@index([userId])
+  @@index([isRead])
+}
+
+// Security Audit model
+model SecurityAudit {
+  id                String      @id @default(cuid())
+  userId            String?
+  
+  eventType         String      // 'login_failed', 'unauthorized_access', 'suspicious_activity'
+  description       String
+  ipAddress         String?
+  userAgent         String?
+  severity          String      // 'low', 'medium', 'high', 'critical'
+  
+  isResolved        Boolean     @default(false)
+  resolvedAt        DateTime?
+  resolvedBy        String?
+  
+  createdAt         DateTime    @default(now())
+  
+  @@index([userId])
+  @@index([severity])
+  @@index([isResolved])
+}
+
+// Platform Settings model
+model PlatformSettings {
+  id                String      @id @default(cuid())
+  key               String      @unique
+  value             String
+  description       String?
+  isPublic          Boolean     @default(false)
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
