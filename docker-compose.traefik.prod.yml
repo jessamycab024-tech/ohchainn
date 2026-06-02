@@ -1,0 +1,30 @@
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: ohchainn-traefik
+    restart: unless-stopped
+    command:
+      - --api.insecure=true
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Traefik dashboard (optional)
+    volumes:
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/letsencrypt:/letsencrypt
+
+  admin-backend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ohchainn-admin.rule=Host(`ohchainn.com`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.ohchainn-admin.entrypoints=websecure"
+      - "traefik.http.routers.ohchainn-admin.tls.certresolver=le"
+      - "traefik.http.services.ohchainn-admin.loadbalancer.server.port=4000"
+networks:
+  default:
+    external: false

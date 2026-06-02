@@ -1,0 +1,30 @@
+http:
+  routers:
+    ohchainn-admin-router:
+      rule: "Host(`ohchainn.com`) && PathPrefix(`/admin`)"
+      entryPoints:
+        - websecure
+      service: ohchainn-admin-service
+      tls:
+        certResolver: le
+      middlewares:
+        - strip-admin
+    ohchainn-admin-router-http:
+      rule: "Host(`ohchainn.com`) && PathPrefix(`/admin`)"
+      entryPoints:
+        - web
+      service: ohchainn-admin-service
+      middlewares:
+        - strip-admin
+
+  services:
+    ohchainn-admin-service:
+      loadBalancer:
+        servers:
+          - url: "http://admin-backend:4000"
+        passHostHeader: true
+  middlewares:
+    strip-admin:
+      stripPrefix:
+        prefixes:
+          - "/admin"
